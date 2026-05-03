@@ -3,46 +3,47 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Invictus Magic Forest - Open House</title>
+    <title>Invictus Magic Forest - Full System</title>
     
-    <!-- 加载必要库 -->
+    <!-- 引入外部库 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 
     <style>
-        body { margin: 0; padding: 0; overflow: hidden; background: #000; font-family: sans-serif; }
+        /* 这里包含了你需要的全套 CSS */
+        body { margin: 0; padding: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', sans-serif; }
         
-        /* UI 菜单：初始隐藏 */
+        #defaultCanvas0 { position: absolute; z-index: 1; top: 0; left: 0; }
+        #three-canvas { position: absolute; z-index: 2; top: 0; left: 0; pointer-events: none; transition: opacity 1.5s ease-in-out; }
+        #input-video { display: none; }
+
         #ui-container {
-            position: absolute; left: 30px; top: 50%; transform: translateY(-50%);
-            display: none; flex-direction: column; gap: 12px; z-index: 100;
+            position: absolute; left: 40px; top: 50%; transform: translateY(-50%);
+            display: none; flex-direction: column; gap: 15px; z-index: 100;
             opacity: 0; transition: opacity 2s ease-in-out;
         }
         
         .menu-btn {
-            padding: 18px 12px; background: rgba(0, 0, 0, 0.85); color: #00ffff;
-            border: 2px solid #00ffff; border-radius: 12px; font-weight: 900;
-            cursor: pointer; font-size: 18px; width: 170px; transition: all 0.3s;
-            text-transform: uppercase; letter-spacing: 1px;
+            padding: 16px 20px; width: 190px; background: rgba(0, 20, 30, 0.7);
+            backdrop-filter: blur(10px); color: #00f2ff; border: 2px solid rgba(0, 242, 255, 0.3);
+            border-radius: 15px; font-size: 18px; font-weight: 800; text-align: left;
+            cursor: pointer; text-transform: uppercase; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
-        .menu-btn.active {
-            background: #00ffff; color: #000; transform: scale(1.1) translateX(10px);
-            box-shadow: 0 0 20px rgba(0, 255, 255, 0.6);
-        }
-        .clear-btn { border-color: #ff4444; color: #ff4444; margin-top: 20px; }
-
-        /* 画布层级控制 */
-        #defaultCanvas0 { position: absolute; z-index: 1; top: 0; left: 0; } /* p5.js */
-        #three-canvas { position: absolute; z-index: 2; top: 0; left: 0; pointer-events: none; transition: opacity 1.5s; } /* Three.js */
         
-        #input-video { display: none; }
+        .menu-btn.active, .menu-btn:hover {
+            background: #00f2ff; color: #000; transform: scale(1.1) translateX(15px);
+            box-shadow: 0 0 30px rgba(0, 242, 255, 0.6);
+        }
+        
+        .clear-btn { margin-top: 30px; border-color: #ff4444; color: #ff4444; background: rgba(40, 0, 0, 0.6); }
+        .clear-btn:hover { background: #ff4444; color: #fff; }
     </style>
 </head>
 <body>
 
-    <!-- UI 界面 -->
+    <!-- UI 菜单 -->
     <div id="ui-container">
         <button id="btn-grass" class="menu-btn" onclick="setMode('grass')">🌱 GRASS</button>
         <button id="btn-flower" class="menu-btn active" onclick="setMode('flower')">🌸 FLOWER</button>
@@ -59,22 +60,21 @@
 
     <script>
         /**
-         * 1. CountdownManager: 完整的 3D 粒子逻辑
+         * PART 1: CountdownManager (Three.js 粒子引擎)
          */
         const CountdownManager = {
             scene: null, camera: null, renderer: null, particles: null,
             targetPositions: null, pointsData: {}, particleCount: 45000,
-
+            
             init() {
                 const canvas = document.getElementById('three-canvas');
                 this.scene = new THREE.Scene();
                 this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
                 this.camera.position.z = 12;
-
-                this.renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+                this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
                 this.renderer.setSize(window.innerWidth, window.innerHeight);
 
-                // 预生成所有状态的点云数据
+                // 文字采样
                 this.pointsData['welcome'] = this.generateTextPoints(["WELCOME TO", "INVICTUS"], 110);
                 this.pointsData['3'] = this.generateTextPoints("3", 150);
                 this.pointsData['2'] = this.generateTextPoints("2", 150);
@@ -90,31 +90,24 @@
                     positions[i*3+2] = (Math.random()-0.5)*20;
                     this.setTarget(i, 'welcome');
                 }
-
                 geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-                const material = new THREE.PointsMaterial({
+                this.particles = new THREE.Points(geometry, new THREE.PointsMaterial({
                     color: 0x00f2ff, size: 0.04, transparent: true, blending: THREE.AdditiveBlending
-                });
-
-                this.particles = new THREE.Points(geometry, material);
+                }));
                 this.scene.add(this.particles);
             },
 
             generateTextPoints(lines, fontSize) {
-                const c = document.createElement('canvas');
-                const ctx = c.getContext('2d');
+                const c = document.createElement('canvas'); const ctx = c.getContext('2d');
                 c.width = 1200; c.height = 800;
                 ctx.fillStyle = '#000'; ctx.fillRect(0, 0, 1200, 800);
                 ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                
                 if (Array.isArray(lines)) {
                     ctx.font = `900 ${fontSize}px sans-serif`;
                     lines.forEach((l, i) => ctx.fillText(l, 600, 400 + (i - (lines.length-1)/2) * (fontSize * 1.2)));
                 } else {
-                    ctx.font = `900 ${fontSize * 3}px sans-serif`;
-                    ctx.fillText(lines, 600, 400);
+                    ctx.font = `900 ${fontSize * 3}px sans-serif`; ctx.fillText(lines, 600, 400);
                 }
-
                 const data = ctx.getImageData(0, 0, 1200, 800).data;
                 const pts = [];
                 for (let y = 0; y < 800; y += 3) {
@@ -141,14 +134,10 @@
                 const pos = this.particles.geometry.attributes.position.array;
                 for (let i = 0; i < this.particleCount; i++) {
                     const i3 = i*3;
-                    if (mode === 'float') {
-                        pos[i3] += Math.sin(Date.now()*0.001 + i)*0.01;
-                        pos[i3+1] += Math.cos(Date.now()*0.001 + i)*0.01;
-                    } else {
-                        pos[i3] += (this.targetPositions[i3] - pos[i3]) * 0.1;
-                        pos[i3+1] += (this.targetPositions[i3+1] - pos[i3+1]) * 0.1;
-                        pos[i3+2] += (this.targetPositions[i3+2] - pos[i3+2]) * 0.1;
-                    }
+                    const spd = (mode === 'float') ? 0.01 : 0.1;
+                    pos[i3] += (this.targetPositions[i3] - pos[i3]) * spd + (mode === 'float' ? Math.sin(Date.now()*0.001+i)*0.01 : 0);
+                    pos[i3+1] += (this.targetPositions[i3+1] - pos[i3+1]) * spd + (mode === 'float' ? Math.cos(Date.now()*0.001+i)*0.01 : 0);
+                    pos[i3+2] += (this.targetPositions[i3+2] - pos[i3+2]) * spd;
                 }
                 this.particles.geometry.attributes.position.needsUpdate = true;
                 this.renderer.render(this.scene, this.camera);
@@ -156,27 +145,22 @@
         };
 
         /**
-         * 2. Mediapipe 逻辑：启动摄像头并发送数据给全局变量 handData
+         * PART 2: Mediapipe & State Management
          */
         let handData = [];
-        const videoElement = document.getElementById('input-video');
-        const hands = new Hands({
-            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-        });
+        let appState = "COUNTDOWN"; 
+        let countdownValue = "welcome";
+
+        const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
         hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
         hands.onResults((results) => { handData = results.multiHandLandmarks; });
 
+        const videoElement = document.getElementById('input-video');
         const camera = new Camera(videoElement, {
             onFrame: async () => { await hands.send({ image: videoElement }); },
             width: 1280, height: 720
         });
         camera.start();
-
-        /**
-         * 3. 状态管理
-         */
-        let appState = "COUNTDOWN"; 
-        let countdownValue = "welcome";
 
         function triggerForestEntry() {
             setTimeout(() => {
@@ -184,48 +168,46 @@
                 const ui = document.getElementById('ui-container');
                 ui.style.display = 'flex';
                 setTimeout(() => { ui.style.opacity = '1'; appState = "FOREST"; }, 100);
-            }, 1000);
+            }, 1500);
         }
     </script>
     
-    <!-- 引入你的 p5.js 逻辑 -->
+    <!-- 引入你的 sketch.js -->
     <script src="sketch.js"></script>
 
     <script>
         /**
-         * 4. 这里的脚本用来劫持 p5.js 的生命周期，让两个引擎同步
+         * PART 3: 引擎调度器
          */
         const oldSetup = setup;
         setup = function() {
-            oldSetup(); // 执行你 sketch.js 里的 setup
-            CountdownManager.init(); // 执行倒数初始化
+            if(typeof oldSetup === 'function') oldSetup();
+            CountdownManager.init();
         };
 
         const oldDraw = draw;
         draw = function() {
             if (appState === "FOREST") {
-                originalDraw(); // 只运行森林内容
+                if(typeof originalDraw === 'function') originalDraw();
             } else {
-                background(0); // 黑色背景等待
-                // 倒数交互逻辑
+                background(0);
                 if (handData && handData.length > 0) {
                     const hand = handData[0];
-                    let fingers = 0;
-                    if (hand[8].y < hand[6].y) fingers++;
-                    if (hand[12].y < hand[10].y) fingers++;
-                    if (hand[16].y < hand[14].y) fingers++;
+                    let f = 0;
+                    if (hand[8].y < hand[6].y) f++;
+                    if (hand[12].y < hand[10].y) f++;
+                    if (hand[16].y < hand[14].y) f++;
                     
-                    let nextValue = countdownValue;
-                    if (fingers === 3) nextValue = '3';
-                    else if (fingers === 2 && countdownValue === '3') nextValue = '2';
-                    else if (fingers === 1 && countdownValue === '2') {
-                        nextValue = '1';
+                    let next = countdownValue;
+                    if (f === 3) next = '3';
+                    else if (f === 2 && countdownValue === '3') next = '2';
+                    else if (f === 1 && countdownValue === '2') {
+                        next = '1';
                         if (countdownValue !== '1') triggerForestEntry();
                     }
-
-                    if (nextValue !== countdownValue) {
-                        countdownValue = nextValue;
-                        CountdownManager.updateTargets(countdownValue);
+                    if (next !== countdownValue) {
+                        countdownValue = next;
+                        CountdownManager.updateTargets(next);
                     }
                 }
                 CountdownManager.render(countdownValue === 'welcome' ? 'float' : 'target');
