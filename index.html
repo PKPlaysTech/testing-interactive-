@@ -3,18 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Invictus Magic Forest - Full System</title>
+    <title>Invictus Magic Forest - 4-Month Open House</title>
     
-    <!-- 引入外部库 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 
     <style>
-        /* 这里包含了你需要的全套 CSS */
         body { margin: 0; padding: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', sans-serif; }
-        
         #defaultCanvas0 { position: absolute; z-index: 1; top: 0; left: 0; }
         #three-canvas { position: absolute; z-index: 2; top: 0; left: 0; pointer-events: none; transition: opacity 1.5s ease-in-out; }
         #input-video { display: none; }
@@ -29,7 +26,7 @@
             padding: 16px 20px; width: 190px; background: rgba(0, 20, 30, 0.7);
             backdrop-filter: blur(10px); color: #00f2ff; border: 2px solid rgba(0, 242, 255, 0.3);
             border-radius: 15px; font-size: 18px; font-weight: 800; text-align: left;
-            cursor: pointer; text-transform: uppercase; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            cursor: pointer; text-transform: uppercase; transition: all 0.4s;
         }
         
         .menu-btn.active, .menu-btn:hover {
@@ -37,13 +34,11 @@
             box-shadow: 0 0 30px rgba(0, 242, 255, 0.6);
         }
         
-        .clear-btn { margin-top: 30px; border-color: #ff4444; color: #ff4444; background: rgba(40, 0, 0, 0.6); }
-        .clear-btn:hover { background: #ff4444; color: #fff; }
+        .clear-btn { margin-top: 30px; border-color: #ff4444; color: #ff4444; }
     </style>
 </head>
 <body>
 
-    <!-- UI 菜单 -->
     <div id="ui-container">
         <button id="btn-grass" class="menu-btn" onclick="setMode('grass')">🌱 GRASS</button>
         <button id="btn-flower" class="menu-btn active" onclick="setMode('flower')">🌸 FLOWER</button>
@@ -55,12 +50,12 @@
         <button class="menu-btn clear-btn" onclick="clearCanvas()">♻️ RESET</button>
     </div>
 
-    <video id="input-video"></video>
+    <video id="input-video" playsinline></video>
     <canvas id="three-canvas"></canvas>
 
     <script>
         /**
-         * PART 1: CountdownManager (Three.js 粒子引擎)
+         * Countdown Particle Engine (Three.js)
          */
         const CountdownManager = {
             scene: null, camera: null, renderer: null, particles: null,
@@ -74,7 +69,6 @@
                 this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
                 this.renderer.setSize(window.innerWidth, window.innerHeight);
 
-                // 文字采样
                 this.pointsData['welcome'] = this.generateTextPoints(["WELCOME TO", "INVICTUS"], 110);
                 this.pointsData['3'] = this.generateTextPoints("3", 150);
                 this.pointsData['2'] = this.generateTextPoints("2", 150);
@@ -145,15 +139,16 @@
         };
 
         /**
-         * PART 2: Mediapipe & State Management
+         * Mediapipe & Logic
          */
-        let handData = [];
         let appState = "COUNTDOWN"; 
         let countdownValue = "welcome";
 
         const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
         hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
-        hands.onResults((results) => { handData = results.multiHandLandmarks; });
+        hands.onResults((results) => { 
+            if (typeof window.handData !== 'undefined') window.handData = results.multiHandLandmarks; 
+        });
 
         const videoElement = document.getElementById('input-video');
         const camera = new Camera(videoElement, {
@@ -170,15 +165,14 @@
                 setTimeout(() => { ui.style.opacity = '1'; appState = "FOREST"; }, 100);
             }, 1500);
         }
+
+        // Bridge to sketch.js
+        window.handData = [];
     </script>
     
-    <!-- 引入你的 sketch.js -->
     <script src="sketch.js"></script>
 
     <script>
-        /**
-         * PART 3: 引擎调度器
-         */
         const oldSetup = setup;
         setup = function() {
             if(typeof oldSetup === 'function') oldSetup();
@@ -191,8 +185,8 @@
                 if(typeof originalDraw === 'function') originalDraw();
             } else {
                 background(0);
-                if (handData && handData.length > 0) {
-                    const hand = handData[0];
+                if (window.handData && window.handData.length > 0) {
+                    const hand = window.handData[0];
                     let f = 0;
                     if (hand[8].y < hand[6].y) f++;
                     if (hand[12].y < hand[10].y) f++;
