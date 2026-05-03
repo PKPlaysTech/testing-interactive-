@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invictus Magic Forest - Countdown Edition</title>
+    
+    <!-- 1. 引入所有库 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; background: #000; }
+        
+        /* 界面 UI：初始隐藏，等森林加载后淡入 */
+        #ui-container {
+            position: absolute; left: 30px; top: 50%; transform: translateY(-50%);
+            display: none; flex-direction: column; gap: 12px; z-index: 100;
+            opacity: 0; transition: opacity 2s;
+        }
+        
+        .menu-btn {
+            padding: 18px 12px; background: rgba(0, 0, 0, 0.8); color: white;
+            border: 3px solid #00ffff; border-radius: 12px; font-weight: 900;
+            cursor: pointer; font-size: 20px; width: 180px; transition: all 0.3s;
+            text-transform: uppercase;
+        }
+        .menu-btn.active {
+            background: #00ffff; color: #000; transform: scale(1.1) translateX(10px);
+            box-shadow: 0 0 25px rgba(0, 255, 255, 0.8);
+        }
+        .clear-btn { border-color: #ff4444; color: #ff4444; margin-top: 20px; }
+
+        /* 画布布局 */
+        canvas { position: absolute; top: 0; left: 0; }
+        #defaultCanvas0 { z-index: 1; } /* p5.js 画布 */
+        #three-canvas { z-index: 2; pointer-events: none; } /* Three.js 画布在顶层 */
+        
+        #video-preview { display: none; }
+    </style>
+</head>
+<body>
+
+    <div id="ui-container">
+        <button id="btn-grass" class="menu-btn" onclick="setMode('grass')"> GRASS</button>
+        <button id="btn-flower" class="menu-btn active" onclick="setMode('flower')"> FLOWER</button>
+        <button id="btn-rose" class="menu-btn" onclick="setMode('rose')"> ROSE</button>
+        <button id="btn-vine" class="menu-btn" onclick="setMode('vine')"> VINE</button>
+        <button id="btn-butterfly" class="menu-btn" onclick="setMode('butterfly')"> BUTTERFLY</button>
+        <button id="btn-star" class="menu-btn" onclick="setMode('star')"> STAR</button>
+        <button id="btn-firefly" class="menu-btn" onclick="setMode('firefly')"> FIREFLY</button>
+        <button class="menu-btn clear-btn" onclick="clearCanvas()"> RESET</button>
+    </div>
+
+    <!-- 用于 Mediapipe 的隐藏视频 -->
+    <video id="input-video"></video>
+    <!-- Three.js 的画布 -->
+    <canvas id="three-canvas"></canvas>
+
+    <script>
+        /**
+         * --- 核心状态机管理 ---
+         * 控制 3-2-1 倒数到森林的转换
+         */
+        let appState = "COUNTDOWN"; 
+        let countdownValue = "welcome";
+
+        // --- CountdownManager (Three.js 逻辑) ---
+        const CountdownManager = {
+            scene: null, camera: null, renderer: null, particles: null,
+            targetPositions: null, pointsData: {},
+            
+            init() {
+                const canvas = document.getElementById('three-canvas');
+                this.scene = new THREE.Scene();
+                this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                this.camera.position.z = 12;
+
+                this.renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.setClearColor(0x000000, 0);
+
+                // 采样文字点云
+                this.pointsData['welcome'] = this.generateTextPoints(["Welcome", "to", "Invictus Dempsey"], 140);
+                this.pointsData['3'] = this.generateTextPoints("3", 140);
+                this.pointsData['2'] = this.generateTextPoints("2", 140);
+                this.pointsData['1'] = this.generateTextPoints("1", 140);
+
+                const geometry = new THREE.BufferGeometry();
+                const PARTICLE_COUNT = 45000;
+                const posArray = new Float32Array(PARTICLE_COUNT * 3);
+                this.targetPositions = new Float32Array(PARTICLE_COUNT * 3);
+
+                for (let i = 0; i < PARTICLE_COUNT; i++) {
+                    posArray[i*3] = (Math.random()-0.5)*40;
+                    posArray[i*3+1] = (Math.random()-0.5)*30;
+                    posArray[i*3+2] = (Math.random()-0.5)*20;
+                    this.setTarget(i, 'welcome');
+                }
+
+                geometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+                const material = new THREE.PointsMaterial({
+                    color: 0x00f2ff, size: 0.035, transparent: true, blending: THREE.AdditiveBlending
+                });
+
+                this.particles = new THREE.Points(geometry, material);
+                this.scene.add(this.particles);
+            },
+
+            generateTextPoints(lines, fontSize) {
+                const offCanvas = document.createElement('canvas');
+                const ctx = offCanvas.getContext('2d');
+                offCanvas.width = 1200; offCanvas.height = 800;
+                ctx.fillStyle = '#000'; ctx.fillRect(0, 0, 1200, 800);
+                ctx.fillStyle = '#fff';
+                ctx.textAlign = 'center';
+                if (Array.isArray(lines)) {
+                    ctx.font = `900 ${fontSize}px sans-serif`;
+                    lines.forEach((l, i) => ctx.fillText(l, 600, 250 + i * 160));
+                } else {
+                    ctx.font = `900 ${fontSize * 3}px sans-serif`;
+                    ctx.fillText(lines, 600, 500);
+                }
+                const imgData = ctx.getImageData(0, 0, 1200, 800).data;
+                const pts = [];
+                for (let y = 0; y < 800; y += 3) {
+                    for (let x = 0; x < 1200; x += 3) {
+                        if (imgData[(y * 1200 + x) * 4] > 150) {
+                            pts.push({ x: (x - 600) * 0.018, y: (400 - y) * 0.018 });
+                        }
+                    }
+                }
+                return pts;
+            },
+
+            setTarget(i, key) {
+                const pts = this.pointsData[key];
+                const pIdx = i % pts.length;
+                this.targetPositions[i*3] = pts[pIdx].x;
+                this.targetPositions[i*3+1] = pts[pIdx].y;
+                this.targetPositions[i*3+2] = (Math.random()-0.5)*0.5;
+            },
+
+            updateTargets(key) {
+                for (let i = 0; i < 45000; i++) this.setTarget(i, key);
+            },
+
+            render(hX, hY, mode) {
+                const pos = this.particles.geometry.attributes.position.array;
+                for (let i = 0; i < 45000; i++) {
+                    const ix = i*3, iy = i*3+1, iz = i*3+2;
+                    if (mode !== 'float') {
+                        pos[ix] += (this.targetPositions[ix] - pos[ix]) * 0.12;
+                        pos[iy] += (this.targetPositions[iy] - pos[iy]) * 0.12;
+                        pos[iz] += (this.targetPositions[iz] - pos[iz]) * 0.12;
+                    } else {
+                        // 自由漂浮逻辑
+                        pos[ix] += Math.sin(Date.now()*0.001 + i)*0.01;
+                        pos[iy] += Math.cos(Date.now()*0.001 + i)*0.01;
+                    }
+                }
+                this.particles.geometry.attributes.position.needsUpdate = true;
+                this.renderer.render(this.scene, this.camera);
+            }
+        };
+
+        // --- 倒数完成转场 ---
+        function triggerForestEntry() {
+            CountdownManager.updateTargets('1'); // 确保显示 1
+            setTimeout(() => {
+                document.getElementById('three-canvas').style.opacity = '0';
+                document.getElementById('ui-container').style.display = 'flex';
+                setTimeout(() => { document.getElementById('ui-container').style.opacity = '1'; }, 100);
+                appState = "FOREST";
+            }, 1500);
+        }
+
+    </script>
+    
+    <!-- 引入你的原有 sketch.js -->
+    <script src="sketch.js"></script>
+
+    <script>
+        // 修改你 sketch.js 里的 setup 和 draw，或者在这里覆盖它们
+        const originalSetup = setup;
+        setup = function() {
+            originalSetup();
+            CountdownManager.init();
+        };
+
+        const originalDraw = draw;
+        draw = function() {
+            if (appState === "FOREST") {
+                originalDraw(); // 运行森林逻辑
+            } else {
+                background(0);
+                // 倒数阶段：只处理手势识别
+                if (handData && handData.length > 0) {
+                    const hand = handData[0];
+                    let extended = 0;
+                    if (hand[8].y < hand[6].y) extended++;
+                    if (hand[12].y < hand[10].y) extended++;
+                    if (hand[16].y < hand[14].y) extended++;
+                    
+                    let newMode = 'float';
+                    // 简单的捏合检测作为 Welcome
+                    let d = dist(hand[4].x, hand[4].y, hand[8].x, hand[8].y);
+                    
+                    if (d < 0.05) newMode = 'welcome';
+                    else if (extended === 3) newMode = '3';
+                    else if (extended === 2 && countdownValue === '3') newMode = '2';
+                    else if (extended === 1 && countdownValue === '2') {
+                        newMode = '1';
+                        if (countdownValue !== '1') triggerForestEntry();
+                    }
+
+                    if (newMode !== 'float' && newMode !== countdownValue) {
+                        countdownValue = newMode;
+                        CountdownManager.updateTargets(newMode);
+                    }
+                }
+                CountdownManager.render(0, 0, countdownValue);
+            }
+        };
+    </script>
+</body>
+</html>
