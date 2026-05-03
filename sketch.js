@@ -1,9 +1,3 @@
-/**
- * Invictus Magic Forest - 4-Month Open House Version
- * Optimized for Integration with Three.js Countdown
- */
-
-let handData = [];
 let elements = [];
 let fireflies = [];
 let currentMode = "flower";
@@ -11,9 +5,8 @@ let myFont;
 let wasPinching = false;
 let imgStar, imgButterfly, imgRose;
 let clearTextAlpha = 0;
-let capture; // 仅作为视频流引用
+let capture; 
 
-// 平滑坐标 (与 index.html 共享)
 let smoothX = 0, smoothY = 0;
 let smoothThumbX = 0, smoothThumbY = 0;
 
@@ -25,36 +18,36 @@ function preload() {
 }
 
 function setup() {
-    // 这里使用 WEBGL 模式
     let canvas = createCanvas(windowWidth, windowHeight, WEBGL);
-    canvas.id("defaultCanvas0"); // 确保 ID 正确，方便 CSS 控制
+    canvas.id("defaultCanvas0"); 
     
-    // 引用 index.html 中已经建立好的视频流
+    // 强制获取并播放底层视频
+    let rawVideo = document.getElementById('input-video');
     capture = select('#input-video'); 
+    if(rawVideo) rawVideo.play(); 
     
-    // 初始化萤火虫
     for(let i=0; i<15; i++) {
         createFirefly(random(width), random(height));
     }
 }
 
-/**
- * 这是被 index.html 里的 draw() 调用的核心绘画函数
- */
 function originalDraw() {
-    // 1. 背景视频层
+    // 1. 背景视频层 - 修复黑屏关键
     push();
     translate(0, 0, -850);
     scale(-4.2, 4.2);
     imageMode(CENTER);
-    tint(80, 120, 255, 65);
-    // 使用 p5 渲染视频帧
-    if (capture) image(capture, 0, 0);
+    // 调亮背景，防止太暗看不见
+    tint(255, 255, 255, 120); 
+    
+    // 使用 .elt 渲染原始视频流
+    if (capture && capture.elt) {
+        image(capture.elt, 0, 0);
+    }
     pop();
 
     drawAndIdentifyFireflies();
 
-    // 2. 绘制所有艺术元素
     for (let i = 0; i < elements.length; i++) {
         let el = elements[i];
         let prevEl = (i > 0) ? elements[i-1] : null;
@@ -68,59 +61,44 @@ function originalDraw() {
         else if (el.type === "butterfly") drawButterfly(el);
     }
 
-    // 3. 自动性能清理
     drawClearFeedback();
-    elements = elements.filter(el => el.type !== 'butterfly' || el.y > -100);
-    if (elements.length > 500) {
-        elements.splice(0, elements.length - 500);
-    }
+    
+    // 自动性能清理
+    if (elements.length > 500) elements.splice(0, elements.length - 500);
 
     handleInput();
 }
 
-/**
- * 核心交互逻辑
- */
 function handleInput() {
-    if (handData && handData.length > 0) {
-        let hand = handData[0];
-        // 这里的坐标转换需要与 index.html 保持一致
+    if (window.handData && window.handData.length > 0) {
+        let hand = window.handData[0];
         smoothX = lerp(smoothX, (1 - hand[8].x) * width, 0.3);
         smoothY = lerp(smoothY, hand[8].y * height, 0.3);
         smoothThumbX = lerp(smoothThumbX, (1 - hand[4].x) * width, 0.3);
         smoothThumbY = lerp(smoothThumbY, hand[4].y * height, 0.3);
 
-        // --- 五指张开魔法清屏 ---
+        // 五指张开清屏
         let d1 = dist(hand[8].x, hand[8].y, hand[0].x, hand[0].y);
         let d2 = dist(hand[12].x, hand[12].y, hand[0].x, hand[0].y);
         let d3 = dist(hand[16].x, hand[16].y, hand[0].x, hand[0].y);
         let d4 = dist(hand[20].x, hand[20].y, hand[0].x, hand[0].y);
         if (d1 > 0.45 && d2 > 0.45 && d3 > 0.45 && d4 > 0.45) {
-            if (elements.length > 0) clearCanvas();
+            if (elements.length > 50) clearCanvas();
             return;
         }
 
-        // --- 捏合检测 ---
         let isPinching = dist(smoothX, smoothY, smoothThumbX, smoothThumbY) < 75;
 
-        // --- 菜单逻辑 ---
-        if (smoothX < 260 && isPinching && !wasPinching) {
-            let idx = floor(smoothY / (height / 8.5)); 
-            let modes = ["grass", "flower", "rose", "vine", "butterfly", "star", "firefly"];
-            if (idx >= 0 && idx < 7) setMode(modes[idx]);
-        } 
-        else if (isPinching) {
-            // 玫瑰模式：捏合时连续画茎叶
+        if (isPinching) {
             if (currentMode === "rose" && frameCount % 3 === 0) createNew(smoothX, smoothY, "roseStem");
             else if (currentMode === "vine" && frameCount % 2 === 0) createNew(smoothX, smoothY, "vine");
             else if (currentMode === "firefly" && frameCount % 10 === 0) createFirefly(smoothX, smoothY);
             else if (currentMode === "butterfly" && frameCount % 30 === 0) createNew(smoothX, smoothY, "butterfly");
-            else if (currentMode !== "flower" && currentMode !== "rose" && currentMode !== "butterfly" && currentMode !== "vine" && frameCount % 4 === 0) {
+            else if (["grass", "star"].includes(currentMode) && frameCount % 4 === 0) {
                 createNew(smoothX, smoothY, currentMode);
             }
         }
 
-        // --- 松开触发绽放 ---
         if (wasPinching && !isPinching) {
             if (currentMode === "flower") createNew(smoothX, smoothY, "flower");
             else if (currentMode === "rose") createNew(smoothX, smoothY, "roseFlower");
@@ -129,6 +107,7 @@ function handleInput() {
     }
 }
 
+// ... 辅助函数（createNew, drawFlower等保持你原有的逻辑） ...
 function createNew(x, y, type) {
     let colors = [], leafData = [], targetSize = 0;
     if (type === "flower") {
@@ -154,13 +133,9 @@ function createNew(x, y, type) {
     elements.push({ x: x, y: y, type: type, size: 0, maxSize: targetSize, offset: random(1000), colors: colors, leaf: leafData });
 }
 
-// --- 绘图细节函数 (保持你原来的代码逻辑) ---
-
 function drawFlower(el) {
     if (el.size < el.maxSize) el.size += 2.5;
-    push();
-    translate(el.x - width/2, el.y - height/2, 2);
-    noStroke();
+    push(); translate(el.x - width/2, el.y - height/2, 2); noStroke();
     for (let l = 0; l < 2; l++) {
         fill(el.colors[l].levels[0], el.colors[l].levels[1], el.colors[l].levels[2], 200);
         let lSize = el.size * (1 - l * 0.23);
@@ -171,25 +146,20 @@ function drawFlower(el) {
 
 function drawRose(el) {
     if (el.size < el.maxSize) el.size += 3.5;
-    push();
-    translate(el.x - width/2, el.y - height/2, 5);
-    imageMode(CENTER); tint(255, 230);
-    image(imgRose, 0, 0, el.size, el.size);
+    push(); translate(el.x - width/2, el.y - height/2, 5);
+    imageMode(CENTER); tint(255, 230); image(imgRose, 0, 0, el.size, el.size);
     pop();
 }
 
 function drawRoseStem(el, prevEl) {
     if (prevEl && prevEl.type === "roseStem" && dist(el.x, el.y, prevEl.x, prevEl.y) < 60) {
-        push();
-        stroke(34, 139, 34, 200); strokeWeight(5);
+        push(); stroke(34, 139, 34, 200); strokeWeight(5);
         line(prevEl.x - width/2, prevEl.y - height/2, -1, el.x - width/2, el.y - height/2, -1);
         if (el.leaf.length > 0) {
             for (let l of el.leaf) {
-                push();
-                translate(el.x - width/2, el.y - height/2, 0);
+                push(); translate(el.x - width/2, el.y - height/2, 0);
                 rotate(l.side * PI/2.5 + l.angle); noStroke(); fill(46, 139, 87, 220);
-                ellipse(0, -l.size/2, l.size/2, l.size);
-                pop();
+                ellipse(0, -l.size/2, l.size/2, l.size); pop();
             }
         }
         pop();
