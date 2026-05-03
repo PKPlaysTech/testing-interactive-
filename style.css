@@ -1,0 +1,116 @@
+/* 1. 基础重置 */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    -webkit-user-select: none; /* 防止触摸屏长按弹出菜单 */
+    user-select: none;
+}
+
+body {
+    background-color: #000;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* 2. 画布层叠逻辑 */
+/* p5.js 画布 - 处于底层 (z-index: 1) */
+#defaultCanvas0 {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 1;
+    display: block;
+}
+
+/* Three.js 画布 - 处于顶层用于倒数 (z-index: 2) */
+#three-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 2;
+    pointer-events: none; /* 让鼠标/触摸穿透到下层 */
+    transition: opacity 1.5s cubic-bezier(0.4, 0, 0.2, 1); /* 转场动画 */
+}
+
+/* 3. 左侧 UI 菜单容器 */
+#ui-container {
+    position: absolute;
+    left: 40px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 100; /* 确保在最顶层 */
+    display: none; /* 初始由 JS 控制显示 */
+    flex-direction: column;
+    gap: 15px;
+    opacity: 0;
+    transition: opacity 2s ease-in-out;
+}
+
+/* 4. 魔法按钮样式 */
+.menu-btn {
+    position: relative;
+    padding: 16px 20px;
+    width: 190px;
+    background: rgba(0, 20, 30, 0.7); /* 半透明深蓝 */
+    backdrop-filter: blur(10px); /* 毛玻璃效果 */
+    color: #00f2ff;
+    border: 2px solid rgba(0, 242, 255, 0.3);
+    border-radius: 15px;
+    font-size: 18px;
+    font-weight: 800;
+    text-align: left;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+/* 按钮悬停或选中状态 */
+.menu-btn.active, .menu-btn:hover {
+    background: #00f2ff;
+    color: #000;
+    border-color: #fff;
+    transform: scale(1.1) translateX(15px);
+    box-shadow: 0 0 30px rgba(0, 242, 255, 0.6);
+}
+
+/* 特殊的 Reset 按钮 */
+.clear-btn {
+    margin-top: 30px;
+    border-color: rgba(255, 68, 68, 0.5);
+    color: #ff4444;
+    background: rgba(40, 0, 0, 0.6);
+}
+
+.clear-btn:hover {
+    background: #ff4444;
+    color: #fff;
+    box-shadow: 0 0 30px rgba(255, 68, 68, 0.6);
+}
+
+/* 5. 隐藏不必要的元素 */
+#input-video {
+    display: none;
+    position: fixed;
+    bottom: 10px;
+    right: 10px;
+    width: 240px;
+    height: auto;
+    border-radius: 10px;
+    z-index: 50;
+    border: 2px solid #333;
+    transform: rotateY(180deg); /* 镜像预览 */
+}
+
+/* 6. 辅助：加载中的动画（可选） */
+.loading-overlay {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: #000;
+    display: flex; justify-content: center; align-items: center;
+    color: #00f2ff; z-index: 999;
+}
